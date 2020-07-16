@@ -1,0 +1,65 @@
+#!/bin/bash
+#
+
+# Abort on any errors
+set -e
+
+target=$1
+
+if [ -z "$target" ]; then
+    echo "Usage $0 <target>"
+    exit 1
+fi
+
+make $target
+
+if [ ! -e $target ]; then
+    echo "Target $target does not exist"
+    return 1
+fi
+
+echo "Firmware Size"
+avr-size $target
+
+rm -f $target.hex
+avr-objcopy --output-target=ihex $target $target.hex
+
+# FIXME Using -F force here so we can program the atmega328pb variant
+avrdude_flags="-F -P usb -c usbasp -p m328p"
+#avrdude_flags="-P /dev/ttyACM0 -c arduino -p m328p"
+# MAC extensions for the location of the avrdude.conf file
+mac_arduino_tools=/Applications/Arduino.app/Contents/Resources/Java/hardware/tools/avr
+if [ -d $mac_arduino_tools ]; then
+    avrdude_flags+=" -C $mac_arduino_tools/etc/avrdude.conf"
+fi
+
+# fuses determined from the arduino configuration file for Arduino Deumilanove
+# These fuses set use of the external 16MHz crystal
+# Changed high fuse from 0xda to 0xd6 as we want the EESAVE fuse set (0)
+# Changed low fuse for full swing oscillator.
+# ext fuse sets Brown Out Detect set to 4.3 volts
+
+# See http://www.engbedded.com/fusecalc
+# Mega328p
+low_fuse=0xff
+high_fuse=0xd6
+ext_fuse=0xf5
+
+echo "Starting avrdude..."
+cmd="avrdude $avrdude_flags -e -U flash:w:$target.hex:i"
+if [ -n "$low_fuse" ]; then
+    cmd+=" -U lfuse:w:$low_fuse:m"
+fi
+if [ -n "$high_fuse" ]; then
+    cmd+=" -U hfuse:w:$high_fuse:m"
+fi
+if [ -n "$ext_fuse" ]; then
+    cmd+=" -U efuse:w:$ext_fuse:m"
+fi
+
+echo $cmd
+$cmd
+
+rm $target.hex
+
+echo "All done"

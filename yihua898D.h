@@ -19,21 +19,25 @@
 #include "Arduino.h"
 #include "TM1628.h"
 
- 
-//#define DEBUG
+// FIXME dpd
+#define DEBUG
 
 //#define CURRENT_SENSE_MOD
 //#define SPEED_SENSE_MOD
 
-#define USE_WATCHDOG
+// FIXME dpd
+//#define USE_WATCHDOG
+
 //#define WATCHDOG_TEST
+
+#define LED_PORT 13
 
 //TM1628 pins
 #define DATA_PIN  8
 #define SCLK_PIN  9
 #define STB_PIN   7
 
-#define FAN_PIN   4 
+#define FAN_PIN   4
 #define FAN_INIT  pinMode(FAN_PIN, OUTPUT)
 #define FAN_OFF   digitalWrite(FAN_PIN, HIGH)
 #define FAN_ON    digitalWrite(FAN_PIN, LOW)
@@ -136,7 +140,7 @@
 #define FAN_SPEED_MIN_DEFAULT 150UL
 #define FAN_SPEED_MAX_DEFAULT 360UL
 
-// 
+//
 // Good starting values with BLDC FAN-speed mod
 //
 // #define FAN_SPEED_MIN_DEFAULT 450UL
@@ -192,72 +196,72 @@
 #define DEV_SI  2
 
 typedef struct CPARAM {
-	int16_t value_min;
-	int16_t value_max;
-	int16_t value_default;
-	int16_t value;
-	uint8_t eep_addr_high;
-	uint8_t eep_addr_low;
-  char szName[4];
+    int16_t value_min;
+    int16_t value_max;
+    int16_t value_default;
+    int16_t value;
+    uint8_t eep_addr_high;
+    uint8_t eep_addr_low;
+    char szName[4];
 } CPARAM;
 
 // HOT AIR/SOLDERING IRON configuration
 typedef struct DEV_CFG {
-  uint8_t dev_type;
-  uint8_t disp_n;
-  CPARAM p_gain;
-  CPARAM p_scal;
-  CPARAM i_gain;
-  CPARAM i_scal;
-  CPARAM d_gain;
-  CPARAM d_scal;
-  CPARAM i_thresh;
-  CPARAM temp_gain_int_corr;
-  CPARAM temp_gain_dec_corr;
-  CPARAM temp_offset_corr;
-  CPARAM temp_averages;
-  CPARAM slp_timeout;
-  CPARAM display_adc_raw;
+    uint8_t dev_type;
+    uint8_t disp_n;
+    CPARAM p_gain;
+    CPARAM p_scal;
+    CPARAM i_gain;
+    CPARAM i_scal;
+    CPARAM d_gain;
+    CPARAM d_scal;
+    CPARAM i_thresh;
+    CPARAM temp_gain_int_corr;
+    CPARAM temp_gain_dec_corr;
+    CPARAM temp_offset_corr;
+    CPARAM temp_averages;
+    CPARAM slp_timeout;
+    CPARAM display_adc_raw;
 #ifdef CURRENT_SENSE_MOD
-  CPARAM fan_current_min;
-  CPARAM fan_current_max;
+    CPARAM fan_current_min;
+    CPARAM fan_current_max;
 #elif defined(SPEED_SENSE_MOD)
-  //
-  // See 'FAN-speed mod' (HW changes required)
-  // The following 2 CPARAM lines need changes in that case
-  //
-  CPARAM fan_speed_min;
-  CPARAM fan_speed_max;
+    //
+    // See 'FAN-speed mod' (HW changes required)
+    // The following 2 CPARAM lines need changes in that case
+    //
+    CPARAM fan_speed_min;
+    CPARAM fan_speed_max;
 #endif
-  // Not configurable in setting change mode
-  CPARAM temp_setpoint;
-  CPARAM fan_only;
+    // Not configurable in setting change mode
+    CPARAM temp_setpoint;
+    CPARAM fan_only;
 } DEV_CFG;
 
 // State of the device (HA/SI)
 typedef struct CNTRL_STATE {
-  int16_t temp_inst;
-  int32_t temp_accu;
-  int16_t temp_average;
-  int16_t temp_average_previous;
-  uint16_t temp_avg_ctr;
-  
-  int16_t heater_ctr;
-  int16_t heater_duty_cycle;
-  int16_t error;
-  int32_t error_accu;
-  int16_t velocity;
-  float PID_drive;
-  
-  uint32_t heater_start_time;
-  
-  uint16_t adc_raw;
+    int16_t temp_inst;
+    int32_t temp_accu;
+    int16_t temp_average;
+    int16_t temp_average_previous;
+    uint16_t temp_avg_ctr;
 
-  uint8_t test_state;
+    int16_t heater_ctr;
+    int16_t heater_duty_cycle;
+    int16_t error;
+    int32_t error_accu;
+    int16_t velocity;
+    float PID_drive;
 
-  uint8_t enabled;
+    uint32_t heater_start_time;
 
-  uint8_t temp_disp_on;
+    uint16_t adc_raw;
+
+    uint8_t test_state;
+
+    uint8_t enabled;
+
+    uint8_t temp_disp_on;
 } CNTRL_STATE;
 
 void dev_cntrl(DEV_CFG *pDev_cfg, CNTRL_STATE *pDev_state);

@@ -24,7 +24,7 @@
  * Date:  2015-02-01
  * PCB version: 858D V6.0
  * Date code:   20140415
- * 
+ *
  * Reported to work with (I did not test these myself):
  * ----------------------------------------------------
  *
@@ -42,7 +42,7 @@
 
 /*
  *  Make sure to read and understand '/Docs/modes_of_operation.txt'
- * 
+ *
  * Change options in the .h file
  *
  */
@@ -55,7 +55,9 @@
  */
 
 #include <avr/io.h>
+#ifdef USE_WATCHDOG
 #include <avr/wdt.h>
+#endif
 #include <avr/interrupt.h>
 #include <stdint.h>
 #include <EEPROM.h>
@@ -89,7 +91,7 @@ DEV_CFG ha_cfg = {
   /* temp_averages */      { 100, 999, TEMP_AVERAGES_DEFAULT, TEMP_AVERAGES_DEFAULT, 22, 23, "Avg"},
   /* slp_timeout */        { 0, 30, SLP_TIMEOUT_DEFAULT, SLP_TIMEOUT_DEFAULT, 24, 25, "SLP"},
   /* display_adc_raw */    { 0, 1, 0, 0, 26, 27, "Adc"},
-#ifdef CURRENT_SENSE_MOD   
+#ifdef CURRENT_SENSE_MOD
   /* fan_current_min */    { 0, 999, FAN_CURRENT_MIN_DEFAULT, FAN_CURRENT_MIN_DEFAULT, 32, 33, "FcL"},
   /* fan_current_max */    { 0, 999, FAN_CURRENT_MAX_DEFAULT, FAN_CURRENT_MAX_DEFAULT, 34, 35, "FcH"},
 #elif defined(SPEED_SENSE_MOD)
@@ -104,9 +106,9 @@ DEV_CFG ha_cfg = {
   /* temp_setpoint */      { 80, 500, TEMP_SETPOINT_DEFAULT, TEMP_SETPOINT_DEFAULT, 28, 29, "StP"},
   /* fan_only */           { 0, 1, 0, 0, 30, 31, "FnO"},
 };
-CPARAM * ha_set_order[] = {&ha_cfg.p_gain, &ha_cfg.p_scal, &ha_cfg.i_gain, &ha_cfg.i_scal, 
+CPARAM * ha_set_order[] = {&ha_cfg.p_gain, &ha_cfg.p_scal, &ha_cfg.i_gain, &ha_cfg.i_scal,
                                       &ha_cfg.d_gain, &ha_cfg.d_scal, &ha_cfg.i_thresh,
-                                      &ha_cfg.temp_gain_int_corr, &ha_cfg.temp_gain_dec_corr, &ha_cfg.temp_offset_corr, 
+                                      &ha_cfg.temp_gain_int_corr, &ha_cfg.temp_gain_dec_corr, &ha_cfg.temp_offset_corr,
                                       &ha_cfg.temp_averages, &ha_cfg.slp_timeout, &ha_cfg.display_adc_raw,
 #ifdef CURRENT_SENSE_MOD
                                       &ha_cfg.fan_current_min, &ha_cfg.fan_current_max,
@@ -146,7 +148,7 @@ DEV_CFG si_cfg = {
 };
 CPARAM * si_set_order[] = {&si_cfg.p_gain, &si_cfg.p_scal, &si_cfg.i_gain, &si_cfg.i_scal,
                                       &si_cfg.d_gain, &si_cfg.d_scal, &si_cfg.i_thresh,
-                                      &si_cfg.temp_gain_int_corr, &si_cfg.temp_gain_dec_corr, &si_cfg.temp_offset_corr, 
+                                      &si_cfg.temp_gain_int_corr, &si_cfg.temp_gain_dec_corr, &si_cfg.temp_offset_corr,
                                       &si_cfg.temp_averages, &si_cfg.display_adc_raw,};
 CNTRL_STATE si_state;
 
@@ -165,106 +167,111 @@ static float scale10(int16_t x, int8_t scaling)
     scaling = -scaling;
     while (scaling--)
        r /= 10.0;
-  } 
-  
-  return r; 
+  }
+
+  return r;
 }
 
 void setup()
 {
-  setup_HW();
-  
+    setup_HW();
+
 #ifdef USE_WATCHDOG
-  watchdog_off();
+    watchdog_off();
 #endif
 
-  init_state(&ha_state);
-  init_state(&si_state);
+    init_state(&ha_state);
+    init_state(&si_state);
 
 #ifdef DEBUG
-  Serial.begin(9600);
-  Serial.println("\nRESET");
+    Serial.begin(9600);
+    Serial.println("\nRESET");
 #endif
-  
-  tm1628.begin(ON, LED_POW); 
 
-  if (EEPROM.read(0) != 0x22) {
-    // check if the firmware was just flashed and the EEPROM is therefore empty
-    // assumption: full chip erase with ISP programmer (preserve eeprom fuse NOT set!)
-    // if so, restore default parameter values & write a 'hint' to address 0
-    restore_default_conf();
-    EEPROM.write(0, 0x22);
-#ifdef DEBUG
-  Serial.println("Default config loaded");
-#endif
-  }
-  
-  key_scan();
+    tm1628.begin(ON, LED_POW);
 
-  if (get_key_state(KEY_DOWN) && get_key_state(KEY_UP)) {
-    restore_default_conf();
+    if (EEPROM.read(0) != 0x22) {
+        // check if the firmware was just flashed and the EEPROM is therefore empty
+        // assumption: full chip erase with ISP programmer (preserve eeprom fuse NOT set!)
+        // if so, restore default parameter values & write a 'hint' to address 0
+        restore_default_conf();
+        EEPROM.write(0, 0x22);
 #ifdef DEBUG
-    Serial.println("Default config loaded");
+        Serial.println("Default config loaded");
 #endif
-  } else if (get_key_state(KEY_UP)) {
-    tm1628.showStr(DISP_2,"FAn");
-    delay(1000);
-    tm1628.showStr(DISP_2,"tSt");
-    delay(1000);
-    FAN_ON;
-    while (1) {
-      uint16_t fan;
-      delay(500);
+    }
+
+    key_scan();
+
+    if (get_key_state(KEY_DOWN) && get_key_state(KEY_UP)) {
+        restore_default_conf();
+#ifdef DEBUG
+        Serial.println("Default config loaded");
+#endif
+    } else if (get_key_state(KEY_UP)) {
+        tm1628.showStr(DISP_2,"FAn");
+        delay(1000);
+        tm1628.showStr(DISP_2,"tSt");
+        delay(1000);
+        FAN_ON;
+        while (1) {
+            uint16_t fan;
+            delay(500);
 #ifdef CURRENT_SENSE_MOD
-      fan = analogRead(FAN_CURRENT_PIN);
-      tm1628.showNum(DISP_2,fan);
+            fan = analogRead(FAN_CURRENT_PIN);
+            tm1628.showNum(DISP_2,fan);
 #elif defined(SPEED_SENSE_MOD)
-      fan = analogRead(FAN_SPEED_PIN);
-      tm1628.showNum(DISP_2,fan);
+            fan = analogRead(FAN_SPEED_PIN);
+            tm1628.showNum(DISP_2,fan);
 #endif        //CURRENT_SENSE_MOD
-      
+
+        }
     }
-  }
-  
-  load_cfg();
+
+    load_cfg();
 
 #ifdef USE_WATCHDOG
-  if (watchdog_check()) 
-  {
-    // there was a watchdog reset - should never ever happen
-    HEATERS_OFF;
-    FAN_ON;
+    if (watchdog_check())
+    {
+        // there was a watchdog reset - should never ever happen
+        HEATERS_OFF;
+        FAN_ON;
 #ifdef DEBUG
-    Serial.println("WDT reset!");
+        Serial.println("WDT reset!");
 #endif
-    while (1) {
-      tm1628.showStr(DISP_1,"rSt");
-      delay(1000);
-      tm1628.clear(DISP_1);
-      delay(1000);
-      key_scan();
-      if (get_key_state(KEY_ENTER)) {
-        break; 
-      }
+        while (1) {
+            tm1628.showStr(DISP_1,"rSt");
+            delay(1000);
+            tm1628.clear(DISP_1);
+            delay(1000);
+            key_scan();
+            if (get_key_state(KEY_ENTER)) {
+                break;
+            }
 #ifdef DEBUG
-      break;
+            break;
 #endif
+        }
     }
-  }
 #endif
 
-  show_firmware_version();
+    show_firmware_version();
 
 #ifdef USE_WATCHDOG
-  test_F_CPU_with_watchdog();
-  watchdog_on();
+    test_F_CPU_with_watchdog();
+    watchdog_on();
 #endif
 
-  key_event_clear();
+    key_event_clear();
+
+    pinMode(LED_PORT, OUTPUT);
 }
 
-void loop() {
-    static uint32_t button_scan_time = 0;
+static uint32_t button_scan_time = 0;
+static bool led_state = false;
+
+void loop()
+{
 
 #ifdef USE_WATCHDOG
     wdt_reset();
@@ -272,259 +279,266 @@ void loop() {
 
     if (millis() - button_scan_time > BUTTON_SCANN_CYCLE)
     {
-      key_scan();
-      button_scan_time = millis();
+        key_scan();
+        button_scan_time = millis();
+
+        led_state = !led_state;
+        digitalWrite(LED_PORT, led_state);
     }
 
-    tm1628.update();  
+    tm1628.update();
 
 #if defined(WATCHDOG_TEST) && defined(USE_WATCHDOG)
     // watchdog test
-    if (ha_state.temp_average > 100) {
+    if (ha_state.temp_average > 100)
       delay(150);
-    }
 #endif
 
-    //Control HA
+    // Control HA
     dev_cntrl(&ha_cfg, &ha_state);
-    //Control SI
+
+    // Control SI
     dev_cntrl(&si_cfg, &si_state);
-    //UI
+
+    // UI
     UI_hndl();
 }
 
 void dev_cntrl(DEV_CFG *pDev_cfg, CNTRL_STATE *pDev_state)
 {
-  uint8_t sw_mask;
-  uint8_t analog_pin;
+    uint8_t sw_mask;
+    uint8_t analog_pin;
 #ifdef DEBUG
-  int32_t start_time = micros();
+    int32_t start_time = micros();
 #endif
-  if (pDev_cfg->dev_type == DEV_HA) {
-    // HA device
-    sw_mask = HA_SW;
-    analog_pin = HA_TEMP_PIN;
-  } else {
-    // SI device
-    sw_mask = SI_SW;
-    analog_pin = SI_TEMP_PIN;
-  }
-      
-  if (!pDev_state->enabled && get_sw_state(sw_mask))
-  {
-    // Enable device
-    pDev_state->enabled = 1;
-#ifdef DEBUG
     if (pDev_cfg->dev_type == DEV_HA) {
-      Serial.println("HA on!");
+        // HA device
+        sw_mask = HA_SW;
+        analog_pin = HA_TEMP_PIN;
     } else {
-      Serial.println("SI on!");
+        // SI device
+        sw_mask = SI_SW;
+        analog_pin = SI_TEMP_PIN;
     }
-#endif
-    // Clear old presses
-    key_event_clear();
-    if (pDev_cfg->dev_type == DEV_HA) { // Only for HA
-      pDev_state->test_state = HA_test(TEST_INIT);
-    }
-       
-  } else if (pDev_state->enabled && !get_sw_state(sw_mask)) 
-  {
-    // Disable Device
-    pDev_state->enabled = 0;
-    if (pDev_cfg->dev_type == DEV_HA) {
-      HA_HEATER_OFF;
-      FAN_OFF;
-    } else {
-      SI_HEATER_OFF;
-    }
-#ifdef DEBUG
-    if (pDev_cfg->dev_type == DEV_HA) {
-      Serial.println("HA off!");
-    } else {
-      Serial.println("SI off!");
-    }
-#endif
-    tm1628.clear(pDev_cfg->disp_n);
-    // Clear state
-    init_state(pDev_state);
-  }
 
-  if (pDev_state->enabled)
-  {
-    if (pDev_cfg->dev_type == DEV_HA && pDev_state->test_state != TEST_ALL_OK) { //Startup test is still running
-      pDev_state->test_state = HA_test(pDev_state->test_state);
-      return;
-    }
-    pDev_state->adc_raw = analogRead(analog_pin); // need raw value later, store it here and avoid 2nd ADC read
-#ifdef DEBUG
-    if (start_time % 1000 == 0)
+    if (!pDev_state->enabled && get_sw_state(sw_mask))
     {
-      if (pDev_cfg->dev_type == DEV_HA) {
-        Serial.print("HA adc=");
-      } else {
-        Serial.print("SI adc=");
-      }
-      Serial.print(pDev_state->adc_raw);
-      Serial.println();
-    }
-#endif
-
-    if (pDev_state->adc_raw < ADC_TEMP_ZERO) { // Set temperature to zero for low ADC values (needed with temperature offset)
-      pDev_state->temp_inst = 0;
-    } else {
-      pDev_state->temp_inst = pDev_state->adc_raw * pDev_cfg->temp_gain_int_corr.value 
-                               + ((int16_t)((((int32_t)pDev_state->adc_raw) * ((int32_t)pDev_cfg->temp_gain_dec_corr.value)) / ((int32_t)1000))) 
-                               + pDev_cfg->temp_offset_corr.value;  // approx. temp in °C
-    }
-
-    if (pDev_state->temp_inst < 0) {
-      pDev_state->temp_inst = 0;
-    }
-    // pid loop / heater handling
-    if (pDev_cfg->dev_type == DEV_HA && (pDev_cfg->fan_only.value == 1 || REEDSW_CLOSED)) { // Only for HA
-      HA_HEATER_OFF;
-      //TODO
-      pDev_state->heater_start_time = millis();
-      tm1628.clearDot(pDev_cfg->disp_n,0);
-    } else if ((pDev_cfg->dev_type == DEV_SI || REEDSW_OPEN) 
-         && (pDev_cfg->temp_setpoint.value >= pDev_cfg->temp_setpoint.value_min)
-         && (pDev_state->temp_average < MAX_TEMP_ERR) 
-         && (pDev_cfg->dev_type == DEV_SI || ((millis() - pDev_state->heater_start_time) < ((uint32_t) (pDev_cfg->slp_timeout.value) * 60 * 1000)))) {
-      // Run PID regulation
-      if (pDev_cfg->dev_type == DEV_HA) {
-        FAN_ON;
-      }
-
-      pDev_state->error = pDev_cfg->temp_setpoint.value - pDev_state->temp_average;
-      pDev_state->velocity = pDev_state->temp_average_previous - pDev_state->temp_average;
-
-      if (abs(pDev_state->error) < pDev_cfg->i_thresh.value) {
-        // if close enough to target temperature use PID control
-        pDev_state->error_accu += pDev_state->error;
-      } else {
-        // otherwise only use PD control (avoids issues with pDev_state->error_accu growing too large
-        pDev_state->error_accu = 0;
-      }
-
-      pDev_state->PID_drive =
-          pDev_state->error * scale10(pDev_cfg->p_gain.value, pDev_cfg->p_scal.value) +
-          pDev_state->error_accu * scale10(pDev_cfg->i_gain.value, pDev_cfg->i_scal.value) +
-          pDev_state->velocity * scale10(pDev_cfg->d_gain.value, pDev_cfg->d_scal.value);
-
-      // Check range before casting to avoid int16 overflow
-      if (pDev_state->PID_drive > (float) HEATER_DUTY_CYCLE_MAX) {
-        pDev_state->PID_drive = (float) HEATER_DUTY_CYCLE_MAX;
-      }
-
-      if (pDev_state->PID_drive < 0.0) {
-        pDev_state->PID_drive = 0.0;
-      }     
-
-      pDev_state->heater_duty_cycle = (int16_t) (pDev_state->PID_drive);
-
-      if (pDev_state->heater_ctr < pDev_state->heater_duty_cycle) {
-        tm1628.setDot(pDev_cfg->disp_n,0);
-        if (pDev_cfg->dev_type == DEV_HA) {
-          HA_HEATER_ON;
-        } else {
-          SI_HEATER_ON;
-        }
-      } else {
-        if (pDev_cfg->dev_type == DEV_HA) {
-          HA_HEATER_OFF;
-        } else {
-          SI_HEATER_OFF;
-        }
-        tm1628.clearDot(pDev_cfg->disp_n,0);
-      }
-
-      pDev_state->heater_ctr++;
-      if (pDev_state->heater_ctr == PWM_CYCLES) {
-        pDev_state->heater_ctr = 0;
-      }
-    } else {
-      if (pDev_cfg->dev_type == DEV_HA) {
-        HA_HEATER_OFF;
-      } else {
-        SI_HEATER_OFF;
-      }
-      tm1628.clearDot(pDev_cfg->disp_n,0);
-    }
-
-    pDev_state->temp_accu += pDev_state->temp_inst;
-    pDev_state->temp_avg_ctr++;
-
-    if (pDev_state->temp_avg_ctr == (uint16_t) (pDev_cfg->temp_averages.value)) {
-      pDev_state->temp_average_previous = pDev_state->temp_average;
-      pDev_state->temp_average = pDev_state->temp_accu / pDev_cfg->temp_averages.value;
-      pDev_state->temp_accu = 0;
-      pDev_state->temp_avg_ctr = 0;
-    }
-    // fan/cradle handling
-    if (pDev_cfg->dev_type == DEV_HA) { // HA only
-      if (REEDSW_OPEN) {
-        FAN_ON;
-      } else if (pDev_state->temp_average >= FAN_ON_TEMP) {
-        FAN_ON;
-      } else if (REEDSW_CLOSED && (pDev_state->temp_average <= FAN_OFF_TEMP)) {
-        FAN_OFF;
-      }
-    }
-    
-    // security first!
-    if (pDev_state->temp_average >= MAX_TEMP_ERR) {
-      // something might have gone terribly wrong
-      if (pDev_cfg->dev_type == DEV_HA) {
-        HA_HEATER_OFF;
-        FAN_ON;
-      } else {
-        SI_HEATER_OFF;
-      }     
-      // TODO
-      HEATERS_OFF; 
-#ifdef USE_WATCHDOG
-      watchdog_off();
-#endif
+        // Enable device
+        pDev_state->enabled = 1;
 #ifdef DEBUG
-      if (pDev_cfg->dev_type == DEV_HA) {
-        Serial.println("Hot air temperature meas. error!");
-      } else {
-        Serial.println("Soldering iron temperature meas. error!");
-      }       
+        if (pDev_cfg->dev_type == DEV_HA) {
+            Serial.println("HA on!");
+        }
+        else
+        {
+            Serial.println("SI on!");
+        }
 #endif
-      while (1) {
-        // stay here until the power is cycled
-        // make sure the user notices the error by blinking "FAn"
-        // and don't resume operation if the error goes away on its own
-        //
-        // possible reasons to be here:
-        //
-        // * wand is not connected (false temperature reading)
-        // * thermo couple has failed
-        // * true over-temperature condition
-        //
-        tm1628.showStr(pDev_cfg->disp_n,"*C");
-        delay(1000);
-        tm1628.showStr(pDev_cfg->disp_n,"Err");
-        delay(2000);
+        // Clear old presses
+        key_event_clear();
+        if (pDev_cfg->dev_type == DEV_HA) { // Only for HA
+            pDev_state->test_state = HA_test(TEST_INIT);
+        }
+    }
+    else if (pDev_state->enabled && !get_sw_state(sw_mask))
+    {
+        // Disable Device
+        pDev_state->enabled = 0;
+        if (pDev_cfg->dev_type == DEV_HA) {
+            HA_HEATER_OFF;
+            FAN_OFF;
+        } else {
+            SI_HEATER_OFF;
+        }
+#ifdef DEBUG
+        if (pDev_cfg->dev_type == DEV_HA) {
+            Serial.println("HA off!");
+        } else {
+            Serial.println("SI off!");
+        }
+#endif
         tm1628.clear(pDev_cfg->disp_n);
-        delay(1000);
-      }
+        // Clear state
+        init_state(pDev_state);
     }
-    
-#ifdef DEBUG
-    int32_t stop_time = micros();
-    if (start_time % 1000 == 0)
+
+    if (pDev_state->enabled)
     {
-      if (pDev_cfg->dev_type == DEV_HA) {
-        Serial.print("HA Loop time: ");
-      } else {
-        Serial.print("SI Loop time: ");
-      }   
-      Serial.println(stop_time - start_time);
-    }
+        if (pDev_cfg->dev_type == DEV_HA && pDev_state->test_state != TEST_ALL_OK)
+        { //Startup test is still running
+            pDev_state->test_state = HA_test(pDev_state->test_state);
+            return;
+        }
+        pDev_state->adc_raw = analogRead(analog_pin); // need raw value later, store it here and avoid 2nd ADC read
+#ifdef DEBUG
+        if (start_time % 1000 == 0)
+        {
+            if (pDev_cfg->dev_type == DEV_HA) {
+                Serial.print("HA adc=");
+            } else {
+                Serial.print("SI adc=");
+            }
+            Serial.print(pDev_state->adc_raw);
+            Serial.println();
+        }
 #endif
-  }
+
+        if (pDev_state->adc_raw < ADC_TEMP_ZERO) { // Set temperature to zero for low ADC values (needed with temperature offset)
+            pDev_state->temp_inst = 0;
+        } else {
+            pDev_state->temp_inst = pDev_state->adc_raw * pDev_cfg->temp_gain_int_corr.value
+                + ((int16_t)((((int32_t)pDev_state->adc_raw) * ((int32_t)pDev_cfg->temp_gain_dec_corr.value)) / ((int32_t)1000)))
+                + pDev_cfg->temp_offset_corr.value;  // approx. temp in °C
+        }
+
+        if (pDev_state->temp_inst < 0) {
+            pDev_state->temp_inst = 0;
+        }
+        // pid loop / heater handling
+        if (pDev_cfg->dev_type == DEV_HA && (pDev_cfg->fan_only.value == 1 || REEDSW_CLOSED)) { // Only for HA
+            HA_HEATER_OFF;
+            //TODO
+            pDev_state->heater_start_time = millis();
+            tm1628.clearDot(pDev_cfg->disp_n,0);
+        } else if ((pDev_cfg->dev_type == DEV_SI || REEDSW_OPEN)
+                   && (pDev_cfg->temp_setpoint.value >= pDev_cfg->temp_setpoint.value_min)
+                   && (pDev_state->temp_average < MAX_TEMP_ERR)
+                   && (pDev_cfg->dev_type == DEV_SI || ((millis() - pDev_state->heater_start_time) < ((uint32_t) (pDev_cfg->slp_timeout.value) * 60 * 1000)))) {
+            // Run PID regulation
+            if (pDev_cfg->dev_type == DEV_HA) {
+                FAN_ON;
+            }
+
+            pDev_state->error = pDev_cfg->temp_setpoint.value - pDev_state->temp_average;
+            pDev_state->velocity = pDev_state->temp_average_previous - pDev_state->temp_average;
+
+            if (abs(pDev_state->error) < pDev_cfg->i_thresh.value) {
+                // if close enough to target temperature use PID control
+                pDev_state->error_accu += pDev_state->error;
+            } else {
+                // otherwise only use PD control (avoids issues with pDev_state->error_accu growing too large
+                pDev_state->error_accu = 0;
+            }
+
+            pDev_state->PID_drive =
+                pDev_state->error * scale10(pDev_cfg->p_gain.value, pDev_cfg->p_scal.value) +
+                pDev_state->error_accu * scale10(pDev_cfg->i_gain.value, pDev_cfg->i_scal.value) +
+                pDev_state->velocity * scale10(pDev_cfg->d_gain.value, pDev_cfg->d_scal.value);
+
+            // Check range before casting to avoid int16 overflow
+            if (pDev_state->PID_drive > (float) HEATER_DUTY_CYCLE_MAX) {
+                pDev_state->PID_drive = (float) HEATER_DUTY_CYCLE_MAX;
+            }
+
+            if (pDev_state->PID_drive < 0.0) {
+                pDev_state->PID_drive = 0.0;
+            }
+
+            pDev_state->heater_duty_cycle = (int16_t) (pDev_state->PID_drive);
+
+            if (pDev_state->heater_ctr < pDev_state->heater_duty_cycle) {
+                tm1628.setDot(pDev_cfg->disp_n,0);
+                if (pDev_cfg->dev_type == DEV_HA) {
+                    HA_HEATER_ON;
+                } else {
+                    SI_HEATER_ON;
+                }
+            } else {
+                if (pDev_cfg->dev_type == DEV_HA) {
+                    HA_HEATER_OFF;
+                } else {
+                    SI_HEATER_OFF;
+                }
+                tm1628.clearDot(pDev_cfg->disp_n,0);
+            }
+
+            pDev_state->heater_ctr++;
+            if (pDev_state->heater_ctr == PWM_CYCLES) {
+                pDev_state->heater_ctr = 0;
+            }
+        } else {
+            if (pDev_cfg->dev_type == DEV_HA) {
+                HA_HEATER_OFF;
+            } else {
+                SI_HEATER_OFF;
+            }
+            tm1628.clearDot(pDev_cfg->disp_n,0);
+        }
+
+        pDev_state->temp_accu += pDev_state->temp_inst;
+        pDev_state->temp_avg_ctr++;
+
+        if (pDev_state->temp_avg_ctr == (uint16_t) (pDev_cfg->temp_averages.value)) {
+            pDev_state->temp_average_previous = pDev_state->temp_average;
+            pDev_state->temp_average = pDev_state->temp_accu / pDev_cfg->temp_averages.value;
+            pDev_state->temp_accu = 0;
+            pDev_state->temp_avg_ctr = 0;
+        }
+        // fan/cradle handling
+        if (pDev_cfg->dev_type == DEV_HA) { // HA only
+            if (REEDSW_OPEN) {
+                FAN_ON;
+            } else if (pDev_state->temp_average >= FAN_ON_TEMP) {
+                FAN_ON;
+            } else if (REEDSW_CLOSED && (pDev_state->temp_average <= FAN_OFF_TEMP)) {
+                FAN_OFF;
+            }
+        }
+
+        // security first!
+        if (pDev_state->temp_average >= MAX_TEMP_ERR) {
+            // something might have gone terribly wrong
+            if (pDev_cfg->dev_type == DEV_HA) {
+                HA_HEATER_OFF;
+                FAN_ON;
+            } else {
+                SI_HEATER_OFF;
+            }
+            // TODO
+            HEATERS_OFF;
+#ifdef USE_WATCHDOG
+            watchdog_off();
+#endif
+#ifdef DEBUG
+            if (pDev_cfg->dev_type == DEV_HA) {
+                Serial.println("Hot air temperature meas. error!");
+            } else {
+                Serial.println("Soldering iron temperature meas. error!");
+            }
+#endif
+            while (1) {
+                // stay here until the power is cycled
+                // make sure the user notices the error by blinking "FAn"
+                // and don't resume operation if the error goes away on its own
+                //
+                // possible reasons to be here:
+                //
+                // * wand is not connected (false temperature reading)
+                // * thermo couple has failed
+                // * true over-temperature condition
+                //
+                tm1628.showStr(pDev_cfg->disp_n,"*C");
+                delay(1000);
+                tm1628.showStr(pDev_cfg->disp_n,"Err");
+                delay(2000);
+                tm1628.clear(pDev_cfg->disp_n);
+                delay(1000);
+            }
+        }
+
+#ifdef DEBUG
+        int32_t stop_time = micros();
+        if (start_time % 1000 == 0)
+        {
+            if (pDev_cfg->dev_type == DEV_HA) {
+                Serial.print("HA Loop time: ");
+            } else {
+                Serial.print("SI Loop time: ");
+            }
+            Serial.println(stop_time - start_time);
+        }
+#endif
+    }
 }
 
 void UI_hndl(void)
@@ -548,23 +562,23 @@ void UI_hndl(void)
   } else {
     HA_start = 0;
   }
-  
+
   if (!HA_start && !si_state.enabled) {
-    sp_mode = 0; 
+    sp_mode = 0;
     if (ha_state.enabled) {
       // Configuration mode is possible in test state of HA
       if (get_key_event_long(KEY_UP | KEY_DOWN)) {
         config_mode();
       }
     }
-    // Nothing to do        
+    // Nothing to do
     return;
   } else if (!HA_start && sp_mode == DEV_HA) { // Device is disabled now
     sp_mode = 0;
   } else if (!si_state.enabled && sp_mode == DEV_SI) { // Device is disabled now
     sp_mode = 0;
   }
-  
+
   // menu key handling
   if (get_key_event(KEY_ENTER)) {
     sp_mode++;
@@ -574,7 +588,7 @@ void UI_hndl(void)
     } else if (sp_mode == DEV_SI && !si_state.enabled) {
       //SI disabled, skip this state
       sp_mode++;
-    }    
+    }
     if (sp_mode > DEV_SI) {
       sp_mode = 0;
       eep_save(&ha_cfg.temp_setpoint);
@@ -587,8 +601,8 @@ void UI_hndl(void)
     pDev_cfg = &ha_cfg;
   } else if (sp_mode == DEV_SI) {
     pDev_cfg = &si_cfg;
-  }  
-  
+  }
+
   if (sp_mode) {
     if (get_key_event_short(KEY_UP | KEY_DOWN)) {// Fan only mode
       if (sp_mode == DEV_HA) {
@@ -608,16 +622,16 @@ void UI_hndl(void)
       } else {
         pDev_cfg->temp_setpoint.value = pDev_cfg->temp_setpoint.value_max;
       }
-  
+
     } else if (get_key_event_long(KEY_DOWN)) {
-  
+
       if (pDev_cfg->temp_setpoint.value > (pDev_cfg->temp_setpoint.value_min + 10)) {
         pDev_cfg->temp_setpoint.value -= 10;
       } else {
         pDev_cfg->temp_setpoint.value = pDev_cfg->temp_setpoint.value_min;
       }
-    } 
-    
+    }
+
     // Display
     if (blink_state > 7) {
       if (sp_mode == DEV_HA && pDev_cfg->fan_only.value == 1) {
@@ -628,23 +642,23 @@ void UI_hndl(void)
     } else {
       tm1628.showNum(pDev_cfg->disp_n, pDev_cfg->temp_setpoint.value);  // show temperature setpoint
     }
-  } 
-  
+  }
+
   //Normal operation display
-  if (sp_mode == DEV_HA) {    
+  if (sp_mode == DEV_HA) {
     temperature_display(&si_cfg, &si_state, blink_state);
-  } else if (sp_mode == DEV_SI) {    
+  } else if (sp_mode == DEV_SI) {
     temperature_display(&ha_cfg, &ha_state, blink_state);
-  } else if (!sp_mode) {  
+  } else if (!sp_mode) {
     // Not in sp mode
     temperature_display(&ha_cfg, &ha_state, blink_state);
     temperature_display(&si_cfg, &si_state, blink_state);
-    
+
     // Configuration mode
     if (get_key_event_long(KEY_UP | KEY_DOWN)) {
       config_mode();
     }
-  }  
+  }
 }
 
 void temperature_display(DEV_CFG *pDev_cfg, CNTRL_STATE *pDev_state, uint8_t blink_state)
@@ -654,7 +668,7 @@ void temperature_display(DEV_CFG *pDev_cfg, CNTRL_STATE *pDev_state, uint8_t bli
   }
 
   if (pDev_state->temp_average <= DISPLAY_OFF_TEMP) {
-    pDev_state->temp_disp_on = 0;     
+    pDev_state->temp_disp_on = 0;
   } else if (pDev_state->temp_average >= DISPLAY_ON_TEMP) {
     pDev_state->temp_disp_on = 1;
   }
@@ -688,12 +702,12 @@ void config_mode(void)
   uint32_t blink_time = millis();
   uint8_t blink_state = 0;
   uint8_t param_num = 0;
-  uint8_t mode = MODE_DEV_SEL;  
-  uint8_t disp = 0;  
+  uint8_t mode = MODE_DEV_SEL;
+  uint8_t disp = 0;
   uint8_t dev_type = DEV_HA;
   uint8_t param_max_num = 0;
   CPARAM ** pSet_order = NULL;
-  
+
   HEATERS_OFF;  // security reasons, delay below!
 #ifdef USE_WATCHDOG
   watchdog_off();
@@ -716,24 +730,24 @@ void config_mode(void)
     disp = si_cfg.disp_n;
     param_max_num = NELEMS(si_set_order);
     pSet_order = (CPARAM **)&si_set_order;
-  } 
-  
-  while(1) 
-  {   
+  }
+
+  while(1)
+  {
     // Blinking feature
     if (millis() - blink_time > BLINK_CYCLE) {
       blink_time = millis();
       if (++blink_state > BLINK_STATE_MAX) {
         blink_state = 0;
       }
-    }      
+    }
     // Key scanning
     if (millis() - button_scan_time > BUTTON_SCANN_CYCLE)
     {
       key_scan();
       button_scan_time = millis();
     }
-    
+
     // Check SW state
     if (!get_sw_state(HA_SW) && !get_sw_state(SI_SW)) {
       //Nothing to do, exit
@@ -744,8 +758,8 @@ void config_mode(void)
     } else if ((si_state.enabled == 1) != (get_sw_state(SI_SW) == SI_SW)) {
       // SI state change, exit config mode
       break;
-    } 
- 
+    }
+
     //Configure device
     if (mode == MODE_DEV_SEL) {
       // Device select mode
@@ -766,28 +780,28 @@ void config_mode(void)
         dev_type++;
         if (dev_type > DEV_SI) {
           dev_type = DEV_HA;
-        }    
+        }
       } else if (get_key_event(KEY_DOWN)) {
         dev_type--;
         if (dev_type < DEV_HA) {
           dev_type = DEV_SI;
-        } 
+        }
       }
-      // Display      
+      // Display
       if (dev_type == DEV_HA) {
         tm1628.showStr(si_cfg.disp_n,"Sol");  // show device name
         if (blink_state > 7) {
           tm1628.clear(ha_cfg.disp_n);
-        } else {         
+        } else {
           tm1628.showStr(ha_cfg.disp_n,"Hot");  // show device name
-        }   
+        }
       } else {
         tm1628.showStr(ha_cfg.disp_n,"Hot");  // show parameter name
         if (blink_state > 7) {
           tm1628.clear(si_cfg.disp_n);
-        } else {         
+        } else {
           tm1628.showStr(si_cfg.disp_n,"Sol");  // show parameter name
-        }  
+        }
       }
     } else if (mode == MODE_VAR_SW) {
       // Variable switching mode
@@ -811,15 +825,15 @@ void config_mode(void)
           param_num--;
           tm1628.showStr(disp,pSet_order[param_num]->szName);
         }
-      }   
+      }
       // Display
       if (blink_state > 7) {
         tm1628.clear(disp);
       } else {
         tm1628.showStr(disp,pSet_order[param_num]->szName);  // show parameter name
-      }       
+      }
     } else {
-      // Edit value mode     
+      // Edit value mode
       if (get_key_event(KEY_UP | KEY_DOWN)) { //Exit without saving
         eep_load(pSet_order[param_num]);
         mode = MODE_VAR_SW;
@@ -851,8 +865,8 @@ void config_mode(void)
         tm1628.clear(disp);
       } else {
         tm1628.showNum(disp,pSet_order[param_num]->value);  // show parameter value
-      }      
-    }    
+      }
+    }
   }
   key_event_clear();
 
@@ -865,17 +879,17 @@ void setup_HW(void)
 {
   HA_HEATER_INIT;
   HA_HEATER_OFF;
-  
+
   SI_HEATER_INIT;
   SI_HEATER_OFF;
 
   FAN_INIT;
   FAN_OFF;
-  
+
   REEDSW_INIT;
   HA_SW_INIT;
   SI_SW_INIT;
-  
+
   pinMode(HA_TEMP_PIN, INPUT);
   pinMode(SI_TEMP_PIN, INPUT);
 
@@ -885,7 +899,7 @@ void setup_HW(void)
   pinMode(FAN_SPEED_PIN, INPUT);  // set as input
 #endif
 
-  analogReference(EXTERNAL);  // use external 3.3V (i.e. from Arduino pin) as ADC reference voltage  
+  analogReference(EXTERNAL);  // use external 3.3V (i.e. from Arduino pin) as ADC reference voltage
 }
 
 void init_state(CNTRL_STATE *pDev_state) {
@@ -1053,7 +1067,7 @@ uint8_t HA_test(uint8_t state)
   static uint32_t test_start = 0;
 
   if (millis() - test_start > HA_TEST_CYCLE) {
-    test_start = millis();  
+    test_start = millis();
 
     HA_HEATER_OFF;
     if (state == TEST_INIT) {
@@ -1073,7 +1087,7 @@ uint8_t HA_test(uint8_t state)
 #if defined(CURRENT_SENSE_MOD) || defined(SPEED_SENSE_MOD)
     }
 #endif
-  
+
 #if defined(CURRENT_SENSE_MOD) || defined(SPEED_SENSE_MOD)
     if (result == CRADLE_OK) {
       // Init fan test
@@ -1099,7 +1113,7 @@ uint8_t HA_test(uint8_t state)
     return TEST_ALL_OK;
   } else {
     return state;
-  }  
+  }
 }
 
 uint8_t cradle_fail_check(uint8_t state)
@@ -1118,15 +1132,15 @@ uint8_t cradle_fail_check(uint8_t state)
     Serial.println("Cradle error!");
 #endif
     state = CRADLE_FAIL1;
-  } 
-  
+  }
+
   switch(state)
   {
-    case CRADLE_FAIL1: 
+    case CRADLE_FAIL1:
       tm1628.showStr(ha_cfg.disp_n,"crA");
-      state = CRADLE_FAIL2;      
-      break;   
-    case CRADLE_FAIL2: 
+      state = CRADLE_FAIL2;
+      break;
+    case CRADLE_FAIL2:
       tm1628.showStr(ha_cfg.disp_n,"dLE");
       state = CRADLE_FAIL3;
       break;
@@ -1140,52 +1154,52 @@ uint8_t cradle_fail_check(uint8_t state)
       state = CRADLE_FAIL1;
       break;
   }
-  
+
   return state;
 }
 
 #if defined(CURRENT_SENSE_MOD) || defined(SPEED_SENSE_MOD)
-uint8_t fan_fail_check(uint8_t state) 
-{  
+uint8_t fan_fail_check(uint8_t state)
+{
   uint8_t fan_current;
   if (state == FAN_OK) {
     return state; // Test already ended
   }
-  
+
   switch(state)
   {
-    case TEST_INIT: 
+    case TEST_INIT:
       FAN_ON;
       state = FAN_TEST1;
       tm1628.setDot(ha_cfg.disp_n,2);
-      break;   
-    case FAN_TEST1: 
+      break;
+    case FAN_TEST1:
       state = FAN_TEST2;
       tm1628.setDot(ha_cfg.disp_n,1);
-      break; 
-    case FAN_TEST2: 
+      break;
+    case FAN_TEST2:
       state = FAN_TEST3;
       tm1628.setDot(ha_cfg.disp_n,0);
-      break; 
-    case FAN_TEST3: 
+      break;
+    case FAN_TEST3:
       tm1628.clear(ha_cfg.disp_n);
 #ifdef CURRENT_SENSE_MOD
       fan_current = analogRead(FAN_CURRENT_PIN);
       FAN_OFF;
-      if ((fan_current < (uint16_t) (ha_cfg.fan_current_min.value)) 
+      if ((fan_current < (uint16_t) (ha_cfg.fan_current_min.value))
           || (fan_current > (uint16_t) (ha_cfg.fan_current_max.value))) {
         // FAN fail !
-        state = FAN_FAIL1;        
+        state = FAN_FAIL1;
 #ifdef DEBUG
         Serial.println("Fan current meas. error!");
 #endif
 #elif defined(SPEED_SENSE_MOD)
       fan_current = analogRead(FAN_SPEED_PIN);
       FAN_OFF;
-      if ((fan_current < (uint16_t) (ha_cfg.fan_speed_min.value)) 
+      if ((fan_current < (uint16_t) (ha_cfg.fan_speed_min.value))
           || (fan_current > (uint16_t) (ha_cfg.fan_speed_max.value))) {
         // FAN fail !
-        state = FAN_FAIL1;        
+        state = FAN_FAIL1;
 #ifdef DEBUG
         Serial.println("Fan speed meas. error!");
 #endif
@@ -1194,11 +1208,11 @@ uint8_t fan_fail_check(uint8_t state)
         state = FAN_OK;
       }
       break;
-    case FAN_FAIL1:     
+    case FAN_FAIL1:
       tm1628.showStr(ha_cfg.disp_n,"FAn");
       state = FAN_FAIL2;
-      break;         
-    case FAN_FAIL2: 
+      break;
+    case FAN_FAIL2:
 #ifdef CURRENT_SENSE_MOD
       tm1628.showStr(ha_cfg.disp_n,"cur");
 #elif defined(SPEED_SENSE_MOD)
@@ -1216,7 +1230,7 @@ uint8_t fan_fail_check(uint8_t state)
       state = FAN_FAIL1;
       break;
   }
-  
+
   return state;
 }
 #endif
@@ -1244,8 +1258,8 @@ void show_firmware_version(void)
 }
 
 void key_scan(void)
-{  
-  static uint32_t long_press_scan_time = millis();  
+{
+  static uint32_t long_press_scan_time = millis();
   static uint8_t old_key_state_lscan = 0;
   static uint8_t key_state_ldetected = 0;
   uint8_t tmp_state = 0;
@@ -1274,7 +1288,7 @@ void key_scan(void)
       tmp_state &= ~SI_SW;
     }
     sw_state_bounce &= ~SI_SW;
-  }    
+  }
 #ifdef DEBUG
   if (sw_state ^ tmp_state) {
     Serial.print("SW = 0x");
@@ -1293,11 +1307,11 @@ void key_scan(void)
 
   // Key handling
   key_state_s |= (key_state & ~tmp_state) & ~old_key_state_lscan;
-  key_state = tmp_state; 
-  
-  if (millis() - long_press_scan_time > LONG_PRESS_SCANN_CYCLE) 
+  key_state = tmp_state;
+
+  if (millis() - long_press_scan_time > LONG_PRESS_SCANN_CYCLE)
   {
-    long_press_scan_time = millis();    
+    long_press_scan_time = millis();
     key_state_s |= (old_key_state_lscan & ~key_state) & ~key_state_ldetected;
     key_state_ldetected &= ~(old_key_state_lscan & ~key_state); // clear this long press if ended
     key_state_l |= (old_key_state_lscan & key_state); // new key state for long press
@@ -1350,7 +1364,7 @@ uint8_t get_key_event_long(uint8_t key_mask)
 //
 uint8_t get_key_event(uint8_t key_mask)
 {
-  if ((key_state_s & key_mask) == key_mask 
+  if ((key_state_s & key_mask) == key_mask
       || (key_state_l & key_mask) == key_mask) {
     key_state_s &= ~key_mask;
     key_state_l &= ~key_mask;
@@ -1380,13 +1394,13 @@ void watchdog_on(void)
   wdt_enable(WDTO_120MS);
 }
 
-uint8_t watchdog_check(void) 
+uint8_t watchdog_check(void)
 {
-  if (strcmp (p, wdt_signature) == 0) 
+  if (strcmp (p, wdt_signature) == 0)
   { // signature is in RAM this was reset
     return 1;
   }
-  else 
+  else
   {  // signature not in RAM this was a power on
     // add the signature to be retained in memory during reset
     memcpy(p, wdt_signature, sizeof(wdt_signature));  // copy signature into RAM

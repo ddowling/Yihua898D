@@ -22,27 +22,27 @@
 
 class TM1628
 {
-  public:
-	// init
-	TM1628(byte _dio_pin, byte _clk_pin, byte _stb_pin);
-	
-	void begin(boolean active, byte intensity);
-	void update();
-	void clear(byte disp);
-  void flush(byte disp);
-	void setDig(byte disp, byte segNum, byte num);
-	void setChar(byte disp, byte segNum, byte chr);
-  void setDot(byte disp, byte segNum);
-  void clearDot(byte disp, byte segNum);
-  void showStr(byte disp, const char *pStr);
-  void showNum(byte disp, int16_t number);
-	byte getButtons();
-  protected:
+public:
+    // init
+    TM1628(byte _dio_pin, byte _clk_pin, byte _stb_pin);
+
+    void begin(boolean active, byte intensity);
+    void update();
+    void clear(byte disp);
+    void flush(byte disp);
+    void setDig(byte disp, byte segNum, byte num);
+    void setChar(byte disp, byte segNum, byte chr);
+    void setDot(byte disp, byte segNum);
+    void clearDot(byte disp, byte segNum);
+    void showStr(byte disp, const char *pStr);
+    void showNum(byte disp, int16_t number);
+    byte getButtons();
+protected:
     byte receive();
     void sendData(byte addr, byte data);
     void sendCommand(byte data);
     void send(byte data);
-    
+
     byte _dio_pin;
     byte _clk_pin;
     byte _stb_pin;
@@ -50,4 +50,3 @@ class TM1628
 };
 
 #endif
-
