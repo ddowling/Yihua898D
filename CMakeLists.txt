@@ -32,3 +32,12 @@ target_link_libraries(test_tm1628
 
 add_custom_command(TARGET test_tm1628
   POST_BUILD COMMAND avr-size test_tm1628)
+
+add_executable(test_io test_io.cpp TM1628.cpp)
+
+target_link_libraries(test_io
+  arduino
+)
+
+add_custom_command(TARGET test_io
+  POST_BUILD COMMAND avr-size test_io)

@@ -72,14 +72,14 @@
 #define REEDSW_CLOSED     (!digitalRead(REEDSW_PIN))
 #define REEDSW_OPEN       digitalRead(REEDSW_PIN)
 
-#define HA_SW_PIN        5
+#define HA_SW_PIN        6
 #define HA_SW_INIT       pinMode(HA_SW_PIN, INPUT_PULLUP)
 #define HA_SW_ON         (!digitalRead(HA_SW_PIN))
 #define HA_SW_OFF        digitalRead(HA_SW_PIN)
 // Switch mask in sw state
 #define HA_SW            0x01
 
-#define SI_SW_PIN        6
+#define SI_SW_PIN        5
 #define SI_SW_INIT       pinMode(SI_SW_PIN, INPUT_PULLUP)
 #define SI_SW_ON         (!digitalRead(SI_SW_PIN))
 #define SI_SW_OFF        digitalRead(SI_SW_PIN)

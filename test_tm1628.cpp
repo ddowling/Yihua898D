@@ -1,24 +1,20 @@
 /* $Id$
  *
- * Copyright   : (c) 2012 by Denis Dowling.  All Rights Reserved
+ * Copyright   : (c) 2020 by Denis Dowling.  All Rights Reserved
  * Project     : Open Source Solutions
  * File        : test_led.cpp
  *
  * Author      : Denis Dowling
- * Created     : 8/4/2013
+ * Created     : 10/7/2020
  *
- * Description : Simple program to toggle the LED on the standard Arduino
- * port D13 (PB5).
+ * Description : Test the interface to the TM1628 LED and keyboard driver
  */
 #include <Arduino.h>
 #include "TM1628.h"
 #include "yihua898D.h"
 
-// Broken DIO7 so more to 11
-const int new_stb_pin = 11;
-
 // define a tm1628 module
-TM1628 tm1628(DATA_PIN, SCLK_PIN, new_stb_pin);
+TM1628 tm1628(DATA_PIN, SCLK_PIN, STB_PIN);
 
 const int led_intensity = 2;
 const int led_port = 13;
