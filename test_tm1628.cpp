@@ -2,7 +2,7 @@
  *
  * Copyright   : (c) 2020 by Denis Dowling.  All Rights Reserved
  * Project     : Open Source Solutions
- * File        : test_led.cpp
+ * File        : test_tm1628.cpp
  *
  * Author      : Denis Dowling
  * Created     : 10/7/2020

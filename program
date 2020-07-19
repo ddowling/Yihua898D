@@ -43,7 +43,7 @@ fi
 # Mega328p
 low_fuse=0xff
 high_fuse=0xd6
-ext_fuse=0xf5
+#ext_fuse=0xf5
 
 echo "Starting avrdude..."
 cmd="avrdude $avrdude_flags -e -U flash:w:$target.hex:i"
